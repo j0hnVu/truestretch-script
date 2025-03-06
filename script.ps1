@@ -16,7 +16,7 @@ try {
     Invoke-WebRequest -Uri $url -OutFile $tempFilePath
     Write-Host "Downloaded file ok: $tempFilePath"
 } catch {
-    Write-Host "IDK co loi j day."
+    Write-Host "Something wrong."
     exit 1
 }
 
@@ -24,7 +24,7 @@ try {
 $matchingFolders = Get-ChildItem -Path $cfgPath -Directory | Where-Object { $_.Name -match '^[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}-ap$' }
 
 if ($matchingFolders.Count -eq 0) {
-    Write-Host "M chua vao game roi out ra."
+    Write-Host "Open Valorant for config folder then rerun the script."
     exit 1
 }
 
@@ -38,13 +38,13 @@ foreach ($folder in $matchingFolders) {
 
     if (Test-Path $windowsFolderPath) {
         Copy-Item -Path $tempFilePath -Destination $windowsFolderPath -Force
-        Write-Host "Chac la copy xong roi"
+        Write-Host "Done."
     } else {
-        Write-Host "Vao game roi out ra lai di."
+        Write-Host "Config folder not found. Open Valorant first then rerun the script"
         exit 1
     }
 
-    if ((Test-Path $configFile) -and ($newWidth -ne 1280) -and ($newHeight -ne 960)) {  
+    if (Test-Path $configFile) {  
         # Read the file
         $configContent = Get-Content $configFile
 
@@ -58,8 +58,9 @@ foreach ($folder in $matchingFolders) {
         # Save the modified file
         $configContent | Set-Content -Path $configFile -Encoding UTF8
 
-        Write-Host "Do phan giai ${newWidth} ${newHeight}"
+        Write-Host "Current Res: ${newWidth} ${newHeight}"
     } 
 
+    # Usually not required but still do to prevent Valorant from modifying the config
     Set-ItemProperty -Path $configFile -Name IsReadOnly -Value $true
 }
