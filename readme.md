@@ -2,11 +2,18 @@
 
 
 ## Usage
+
+``` If your res is 1280 - 960:
+irm https://raw.githubusercontent.com/j0hnVu/truestretch-script/refs/heads/main/1280-960.ps1 | iex
+
+``` If your res is 1080 - 1080:
+irm https://raw.githubusercontent.com/j0hnVu/truestretch-script/refs/heads/main/1080-1080.ps1 | iex
 ```
-powershell -ExecutionPolicy Bypass -File .\test.ps1
-```
+
+###
 
 ### If you want specific resolution:
 ```
-powershell -ExecutionPolicy Bypass -File .\test.ps1 1920 1080
+irm https://raw.githubusercontent.com/j0hnVu/truestretch-script/refs/heads/main/1280-960.ps1 -OutFile 1280-960.ps1
+powershell -ExecutionPolicy Bypass -File .\1280-960.ps1 $RES1 $RES2
 ```
