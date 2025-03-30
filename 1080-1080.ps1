@@ -2,7 +2,7 @@
 ## powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\Downloads\script.ps1"
 
 param (
-    [int]$newWidth = 1920,   # Default Width
+    [int]$newWidth = 1080,   # Default Width
     [int]$newHeight = 1080   # Default Height
 )
 
