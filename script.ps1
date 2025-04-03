@@ -67,7 +67,7 @@ function takeRegOwnership {
 
 try {
     # Iterate through subkeys in the DisplayDatabase registry path
-    if (Test-Path $fullPath -And $isCruDownload) {
+    if ((Test-Path $fullPath) -And ($isCruDownload)) {
         takeRegOwnership -Path "$altPath"
         $subKeys = Get-ChildItem -Path $fullPath
 
@@ -207,6 +207,7 @@ Set-ItemProperty -Path $configFile -Name IsReadOnly -Value $true
 
 # Get refresh-rate
 function getRefreshRate(){
+    # This doesn't work. Some monitors has float refresh rate. CurrentRefreshRate only returns
     return (Get-WmiObject -Namespace root\cimv2 -Class Win32_VideoController | 
     Select-Object -ExpandProperty CurrentRefreshRate -Unique | 
     Sort-Object)
