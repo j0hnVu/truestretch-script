@@ -337,5 +337,5 @@ public static class Display {
     }
 }
 
-Write-Host "Changing Screen Resolution to $newWidth $newHeight $refreshRates"
+Write-Host "Changing Screen Resolution to $newWidth $newHeight"
 changeRes
