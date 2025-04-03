@@ -4,21 +4,99 @@ param (
     )
 
 # Variables
-$url = "https://raw.githubusercontent.com/j0hnVu/truestretch-script/refs/heads/main/GameUserSettings.ini" 
+$configUrl = "https://raw.githubusercontent.com/j0hnVu/truestretch-script/refs/heads/main/GameUserSettings.ini"
+$qresUrl = "https://raw.githubusercontent.com/j0hnVu/truestretch-script/refs/heads/main/tools/QRes.exe"
+$cruUrl = "https://raw.githubusercontent.com/j0hnVu/truestretch-script/refs/heads/main/tools/restart-only.exe"
 $tempFilePath = "$env:TEMP\GameUserSettings.ini"
 $cfgPath = "$env:LOCALAPPDATA\VALORANT\Saved\Config"
 $region = "-ap" # Temporary hardcoded region
 
+$altPath = "SYSTEM\CurrentControlSet\Control\GraphicsDrivers\Configuration"
+$fullPath = "Registry::HKEY_LOCAL_MACHINE\$altPath"
+
 clear
 
-# Download cfg file
+# Download necessary file
+$isConfigDownload = $false
+$isQresDownload = $false
+$isCruDownload = $false
 try {
-    Invoke-WebRequest -Uri $url -OutFile $tempFilePath
+    Invoke-WebRequest -Uri $configUrl -OutFile $tempFilePath # Base config file
+    $isConfigDownload = $true
     Write-Host "Base file downloaded ok: $tempFilePath"
 } catch {
         Write-Host "Something wrong. Internet Connection or something."
         exit 1
+}
+
+try {
+    Invoke-WebRequest -Uri $cruUrl -OutFile "./restart-only.exe"
+    $isCruDownload = $true
+    Write-Host "restart-only.exe downloaded ok."
+} catch {
+        Write-Host "Something wrong. restart-only.exe is not downloaded"
+}
+
+try {
+    Invoke-WebRequest -Uri $cruUrl -OutFile "./qres.exe"
+    $isQresDownload = $true
+    Write-Host "qres.exe downloaded ok."
+} catch {
+        Write-Host "Something wrong. qres.exe is not downloaded"
+}
+
+function takeRegOwnership {
+    param (
+        [string]$Path
+        )
+    # Open the registry key with permissions to take ownership
+    $key = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
+        $Path,
+        [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,
+        [System.Security.AccessControl.RegistryRights]::TakeOwnership
+    )
+    # Get the current ACL for the registry key
+    $acl = $key.GetAccessControl()
+    # Set the new owner
+    $acl.SetOwner([System.Security.Principal.NTAccount] "BUILTIN\Administrators")
+    # Apply the updated ACL to the registry key
+    $key.SetAccessControl($acl)
+}
+
+
+
+try {
+    # Iterate through subkeys in the DisplayDatabase registry path
+    if ((Test-Path $fullPath) -And ($isCruDownload)) {
+        takeRegOwnership -Path "$altPath"
+        $subKeys = Get-ChildItem -Path $fullPath
+
+        foreach ($subKey in $subKeys) {
+            $curFullPath = "$subKey\00\00"
+            $curAltPath = $curFullPath -replace "^HKEY_LOCAL_MACHINE\\", ""
+            # Write-Host "Processing registry key: $curFullPath"
+
+            # Check if Scaling value exists
+            $scalingValue = Get-ItemProperty -Path "Registry::$curFullPath" -Name "Scaling"
+
+            if ($null -ne $scalingValue) {
+                if ($scalingValue.Scaling -ne 3) {
+                    takeRegOwnership -Path $curAltPath
+                    Set-ItemProperty -Path "Registry::$curFullPath" -Name "Scaling" -Value 3
+                    #Write-Host "Scaling set to 3 (Full-screen Stretch)."
+                } 
+                # else {
+                #    Write-Host "Already at Full-screen Stretch"
+                # }
+            }
+        }
     }
+    Start-Process "restart-only.exe" -WindowStyle Hidden
+    Write-Host "Scaling configuration process completed."
+} catch {
+    Write-Host "Error: $_"
+    Write-Host "Something's Wrong. Please go to NVIDIA Control Panel and set Full-screen manually"
+}
 
 # Powershell version < 7.4 doesn't use the -SkipCertificateCheck
 Add-Type @"
@@ -84,7 +162,6 @@ while (-not $getResponse){
     }
 }
 
-
 # Quit the script if no PUUID is retrived.
 if (-not $getResponse) {
     Write-Host "Failed to get PUUID after 5 attempts"
@@ -127,3 +204,138 @@ if ((Test-Path $configFile) -and (($newWidth -ne 1280) -and ($newHeight -ne 960)
 
 # Reenable ReadOnly. Usually not required but still do to prevent Valorant from modifying the config
 Set-ItemProperty -Path $configFile -Name IsReadOnly -Value $true
+
+# Get refresh-rate
+function getRefreshRate(){
+    # This doesn't work. Some monitors has float refresh rate. CurrentRefreshRate only returns integer value
+    # return (Get-WmiObject -Namespace root\cimv2 -Class Win32_VideoController | 
+    # Select-Object -ExpandProperty CurrentRefreshRate -Unique | 
+    # Sort-Object)
+
+    # TO-DO:
+    $subKeys = Get-ChildItem -Path $fullPath
+
+        foreach ($subKey in $subKeys) {
+            $curFullPath = "$subKey\00\00"
+            $curAltPath = $curFullPath -replace "^HKEY_LOCAL_MACHINE\\", ""
+            # Write-Host "Processing registry key: $curFullPath"
+
+            # Check if Scaling value exists
+            $scalingValue = Get-ItemProperty -Path "Registry::$curFullPath" -Name "Scaling"
+
+            if ($null -ne $scalingValue) {
+                if ($scalingValue.Scaling -ne 3) {
+                    takeRegOwnership -Path $curAltPath
+                    Set-ItemProperty -Path "Registry::$curFullPath" -Name "Scaling" -Value 3
+                    #Write-Host "Scaling set to 3 (Full-screen Stretch)."
+                } 
+            }
+        }
+
+}
+
+# $refreshRates = getRefreshRate
+
+function changeRes(){
+
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+ 
+public static class Display {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DEVMODE {
+        private const int CCHDEVICENAME = 0x20;
+        private const int CCHFORMNAME = 0x20;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 0x20)]
+        public string dmDeviceName;
+        public short dmSpecVersion;
+        public short dmDriverVersion;
+        public short dmSize;
+        public short dmDriverExtra;
+        public int dmFields;
+        public int dmPositionX;
+        public int dmPositionY;
+        public int dmDisplayOrientation;
+        public int dmDisplayFixedOutput;
+        public short dmColor;
+        public short dmDuplex;
+        public short dmYResolution;
+        public short dmTTOption;
+        public short dmCollate;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 0x20)]
+        public string dmFormName;
+        public short dmLogPixels;
+        public int dmBitsPerPel;
+        public int dmPelsWidth;
+        public int dmPelsHeight;
+        public int dmDisplayFlags;
+        public int dmDisplayFrequency;
+        public int dmICMMethod;
+        public int dmICMIntent;
+        public int dmMediaType;
+        public int dmDitherType;
+        public int dmReserved1;
+        public int dmReserved2;
+        public int dmPanningWidth;
+        public int dmPanningHeight;
+    }
+ 
+    [DllImport("user32.dll")]
+    public static extern bool EnumDisplaySettings (string deviceName, int modeNum, ref DEVMODE devMode);  
+ 
+    [DllImport("user32.dll")]
+    public static extern int ChangeDisplaySettings(ref DEVMODE devMode, int flags);
+}
+'@
+    
+    $isDevMode = $false
+    Add-Type -AssemblyName System.Windows.Forms
+    $primaryScreen = [System.Windows.Forms.Screen]::PrimaryScreen
+    
+    $devMode = [Display+DEVMODE]::new()
+    $devMode.dmSize = [System.Runtime.InteropServices.Marshal]::SizeOf($devMode)
+     
+    $devReturn = [Display]::EnumDisplaySettings($primaryScreen.DeviceName,-1,[ref]$devMode)
+    if($devReturn) {
+        if($devMode.dmDisplayFrequency -ne $refreshRates) {
+            $devMode.dmPelsWidth = $newWidth
+            $devMode.dmPelsHeight = $newHeight
+
+            $devReturn = [Display]::ChangeDisplaySettings([ref]$devMode,0x00000001 -bor 0x00000008)
+            if($devReturn -eq 0) {
+                $devMode = [Display+DEVMODE]::new()
+                $devMode.dmSize = [System.Runtime.InteropServices.Marshal]::SizeOf($devMode)
+                $devReturn = [Display]::EnumDisplaySettings($primaryScreen.DeviceName,-1,[ref]$devMode)
+                Write-Host "Display frequency has been changed, current display config: $($devMode.dmPelsWidth)x$($devMode.dmPelsHeight) $($devMode.dmDisplayFrequency)Hz"
+                $isDevMode = $true
+            }
+            elseif($devReturn -eq 1) {
+                Write-Host "A restart is required. Please manually change the resolution."
+                $isDevMode = $false
+            }
+            else
+            {
+                Write-Host "Failed to change display frequency, please check if display is capable of running at $refreshRates`Hz"
+                $isDevMode = $false
+            }
+
+        }
+        else
+        {
+            Write-Host "Current display frequency is already at $newWidth x $newHeight"
+            $isDevMode = $true
+        }
+    }
+    elseif(!($isDevMode) -and $isQresDownload)
+    {
+        Write-Host "Something's wrong. Using qres.exe instead"
+        Start-Process -FilePath ".\QRes.exe" -ArgumentList "/x:$newWidth /y:$newHeight" -Wait
+    }
+    else {
+        Write-Host "qres.exe is unavailable. Please change the resolution manually."
+    }
+}
+
+Write-Host "Changing Screen Resolution to $newWidth $newHeight"
+changeRes
