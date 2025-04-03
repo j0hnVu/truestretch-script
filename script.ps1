@@ -207,13 +207,34 @@ Set-ItemProperty -Path $configFile -Name IsReadOnly -Value $true
 
 # Get refresh-rate
 function getRefreshRate(){
-    # This doesn't work. Some monitors has float refresh rate. CurrentRefreshRate only returns
-    return (Get-WmiObject -Namespace root\cimv2 -Class Win32_VideoController | 
-    Select-Object -ExpandProperty CurrentRefreshRate -Unique | 
-    Sort-Object)
+    # This doesn't work. Some monitors has float refresh rate. CurrentRefreshRate only returns integer value
+    # return (Get-WmiObject -Namespace root\cimv2 -Class Win32_VideoController | 
+    # Select-Object -ExpandProperty CurrentRefreshRate -Unique | 
+    # Sort-Object)
+
+    # TO-DO:
+    $subKeys = Get-ChildItem -Path $fullPath
+
+        foreach ($subKey in $subKeys) {
+            $curFullPath = "$subKey\00\00"
+            $curAltPath = $curFullPath -replace "^HKEY_LOCAL_MACHINE\\", ""
+            # Write-Host "Processing registry key: $curFullPath"
+
+            # Check if Scaling value exists
+            $scalingValue = Get-ItemProperty -Path "Registry::$curFullPath" -Name "Scaling"
+
+            if ($null -ne $scalingValue) {
+                if ($scalingValue.Scaling -ne 3) {
+                    takeRegOwnership -Path $curAltPath
+                    Set-ItemProperty -Path "Registry::$curFullPath" -Name "Scaling" -Value 3
+                    #Write-Host "Scaling set to 3 (Full-screen Stretch)."
+                } 
+            }
+        }
+
 }
 
-$refreshRates = getRefreshRate
+# $refreshRates = getRefreshRate
 
 function changeRes(){
 
@@ -278,7 +299,6 @@ public static class Display {
     $devReturn = [Display]::EnumDisplaySettings($primaryScreen.DeviceName,-1,[ref]$devMode)
     if($devReturn) {
         if($devMode.dmDisplayFrequency -ne $refreshRates) {
-            $devMode.dmDisplayFrequency = $refreshRates
             $devMode.dmPelsWidth = $newWidth
             $devMode.dmPelsHeight = $newHeight
 
@@ -303,14 +323,14 @@ public static class Display {
         }
         else
         {
-            Write-Host "Current display frequency is already at $newWidth x $newHeight $refreshRates`Hz"
+            Write-Host "Current display frequency is already at $newWidth x $newHeight"
             $isDevMode = $true
         }
     }
-    elseif(!($isDevMode) -And $isQresDownload)
+    elseif(!($isDevMode) -and $isQresDownload)
     {
         Write-Host "Something's wrong. Using qres.exe instead"
-        Start-Process -FilePath ".\QRes.exe" -ArgumentList "/x:$newWidth /y:$newHeight /r:$refreshRates" -Wait
+        Start-Process -FilePath ".\QRes.exe" -ArgumentList "/x:$newWidth /y:$newHeight" -Wait
     }
     else {
         Write-Host "qres.exe is unavailable. Please change the resolution manually."
