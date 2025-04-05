@@ -1,16 +1,18 @@
 param (
     [int]$newWidth = 1280,   # Default Width
     [int]$newHeight = 960   # Default Height
+    [string]$region = "ap" # Default region
     )
 
 # Variables
 $configUrl = "https://raw.githubusercontent.com/j0hnVu/truestretch-script/refs/heads/main/GameUserSettings.ini"
 $qresUrl = "https://raw.githubusercontent.com/j0hnVu/truestretch-script/refs/heads/main/tools/QRes.exe"
 $cruUrl = "https://raw.githubusercontent.com/j0hnVu/truestretch-script/refs/heads/main/tools/restart-only.exe"
-$tempFilePath = "$env:TEMP\GameUserSettings.ini"
-$cfgPath = "$env:LOCALAPPDATA\VALORANT\Saved\Config"
-$region = "-ap" # Temporary hardcoded region
 
+$region = "-$region" # Temporary hardcoded region
+
+$cfgPath = "$env:LOCALAPPDATA\VALORANT\Saved\Config"
+$tempFilePath = "$env:TEMP\GameUserSettings.ini"
 $altPath = "SYSTEM\CurrentControlSet\Control\GraphicsDrivers\Configuration"
 $fullPath = "Registry::HKEY_LOCAL_MACHINE\$altPath"
 
@@ -69,7 +71,7 @@ try {
     # Iterate through subkeys in the DisplayDatabase registry path
     if ((Test-Path $fullPath) -And ($isCruDownload)) {
         takeRegOwnership -Path "$altPath"
-        $subKeys = Get-ChildItem -Path $fullPath
+        $subKeys = Get-ChildItem -Path "$fullPath"
 
         foreach ($subKey in $subKeys) {
             $curFullPath = "$subKey\00\00"
@@ -85,9 +87,6 @@ try {
                     Set-ItemProperty -Path "Registry::$curFullPath" -Name "Scaling" -Value 3
                     #Write-Host "Scaling set to 3 (Full-screen Stretch)."
                 } 
-                # else {
-                #    Write-Host "Already at Full-screen Stretch"
-                # }
             }
         }
     }
@@ -128,42 +127,40 @@ while (-not $isRiotClient){
     }
 }
 
-# Retrive PUUID using LCU API to create folder
+# Retrive PUUID using Riot Client Local API to create folder
 while (-not $getResponse){
-    # Using LCU API to get PUUID
-    $port = Get-Content "$env:LOCALAPPDATA\Riot Games\Riot Client\Config\lockfile" | ForEach-Object { ($_ -split ':')[2] }
-    $token = Get-Content "$env:LOCALAPPDATA\Riot Games\Riot Client\Config\lockfile" | ForEach-Object { ($_ -split ':')[3] }
-    $headers = @{
-    Authorization = "Basic $([Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("riot:$token")))"
-    "Content-Type" = "application/json"
-}
-
-    try {
-        $puuid = Invoke-RestMethod -Uri "https://127.0.0.1:$port/riot-messaging-service/v1/user" -Headers $headers
-
-        $nametag = Invoke-RestMethod -Uri "https://127.0.0.1:$port/player-account/aliases/v1/display-name" -Headers $headers
-
-        Write-Host "Logged in as: $($nametag.gameName)#$($nametag.tagLine)"
-
-        if ($puuid -Match '^[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}$'){
-            Write-Host "Valid PUUID. Continue."
-            $getResponse = $true
+    if ($retryCount -lt 50){
+        # Using Riot Client Local API to get PUUID
+        $port = Get-Content "$env:LOCALAPPDATA\Riot Games\Riot Client\Config\lockfile" | ForEach-Object { ($_ -split ':')[2] }
+        $token = Get-Content "$env:LOCALAPPDATA\Riot Games\Riot Client\Config\lockfile" | ForEach-Object { ($_ -split ':')[3] }
+        $headers = @{
+        Authorization = "Basic $([Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("riot:$token")))"
+        "Content-Type" = "application/json"
         }
-    } catch {
-        if ($(($_ | ConvertFrom-Json).message) -eq "User is not authenticated"){
-            Write-Host "Attempt $($retryCount + 1): Please login. Retry after 5 seconds."
-            $retryCount++
-            Start-Sleep 5
-        } else {
-            Write-Host "Error: $(($_ | ConvertFrom-Json).message)"
-            $retryCount++
-            Start-Sleep 2
+
+        try {
+            $puuid = Invoke-RestMethod -Uri "https://127.0.0.1:$port/riot-messaging-service/v1/user" -Headers $headers
+            $nametag = Invoke-RestMethod -Uri "https://127.0.0.1:$port/player-account/aliases/v1/display-name" -Headers $headers
+
+            Write-Host "Logged in as: $($nametag.gameName)#$($nametag.tagLine)"
+
+            if ($puuid -Match '^[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}$'){
+                Write-Host "Valid PUUID. Continue."
+                $getResponse = $true
+            }
+        } catch {
+            if ($(($_ | ConvertFrom-Json).message) -eq "User is not authenticated"){
+                Write-Host "Attempt $($retryCount + 1): Please login. Retry after 5 seconds."
+                $retryCount++
+                Start-Sleep 5
+            } else {
+                Write-Host "Error: $(($_ | ConvertFrom-Json).message)"
+                $retryCount++
+                Start-Sleep 2
+            }
         }
     }
-}
-
-# Quit the script if no PUUID is retrived.
-if (-not $getResponse) {
+    # Quit the script if no PUUID is retrived.
     Write-Host "Failed to get PUUID after 5 attempts"
     exit 1
 }
@@ -185,7 +182,7 @@ Write-Host "Done."
 Set-ItemProperty -Path $configFile -Name IsReadOnly -Value $false
 
 # If the config file exists, and the width & height isn't the default value, change the value in the config file
-if ((Test-Path $configFile) -and (($newWidth -ne 1280) -and ($newHeight -ne 960))) {  
+if ((Test-Path $configFile) -and (($newWidth -ne 1280) -or ($newHeight -ne 960))) {  
     # Read the file
     $configContent = Get-Content $configFile
 
@@ -207,34 +204,35 @@ Set-ItemProperty -Path $configFile -Name IsReadOnly -Value $true
 
 # Get refresh-rate
 function getRefreshRate(){
-    # This doesn't work. Some monitors has float refresh rate. CurrentRefreshRate only returns integer value
-    # return (Get-WmiObject -Namespace root\cimv2 -Class Win32_VideoController | 
-    # Select-Object -ExpandProperty CurrentRefreshRate -Unique | 
-    # Sort-Object)
+    # I noticed a few NOEDID entries in $altPath, so I get all refresh rates value by dividing refresh rate numerator with denominator and get the max value
+    refRateValues= ${}
 
-    # TO-DO:
-    $subKeys = Get-ChildItem -Path $fullPath
+    takeRegOwnership -Path "$altPath"
+    $subKeys = Get-ChildItem -Path "$fullPath"
 
         foreach ($subKey in $subKeys) {
             $curFullPath = "$subKey\00\00"
             $curAltPath = $curFullPath -replace "^HKEY_LOCAL_MACHINE\\", ""
             # Write-Host "Processing registry key: $curFullPath"
 
-            # Check if Scaling value exists
-            $scalingValue = Get-ItemProperty -Path "Registry::$curFullPath" -Name "Scaling"
+            # Check if Refresh Rate denominator and numerator value exists
+            $refDenominatorValue = Get-ItemProperty -Path "Registry::$curFullPath" -Name "RefreshRateDenominator"
+            $refNumeratorValue = Get-ItemProperty -Path "Registry::$curFullPath" -Name "RefreshRateNumerator"
 
-            if ($null -ne $scalingValue) {
-                if ($scalingValue.Scaling -ne 3) {
-                    takeRegOwnership -Path $curAltPath
-                    Set-ItemProperty -Path "Registry::$curFullPath" -Name "Scaling" -Value 3
-                    #Write-Host "Scaling set to 3 (Full-screen Stretch)."
-                } 
+            if ($refDenominatorValue -ne 0) {
+                $refRate = $refNumeratorValue / $refDenominatorValue
+                $refRate += $refRateValues
             }
         }
-
+    if ($refRateValues.Count -gt 0) {
+        return ($refRateValues | Sort-Object -Descending)[0]
+    } else {
+        return $null
+    }
 }
 
 # $refreshRates = getRefreshRate
+# assuming that the refresh rate is already at the highest value
 
 function changeRes(){
 
@@ -289,7 +287,6 @@ public static class Display {
 }
 '@
     
-    $isDevMode = $false
     Add-Type -AssemblyName System.Windows.Forms
     $primaryScreen = [System.Windows.Forms.Screen]::PrimaryScreen
     
@@ -298,7 +295,7 @@ public static class Display {
      
     $devReturn = [Display]::EnumDisplaySettings($primaryScreen.DeviceName,-1,[ref]$devMode)
     if($devReturn) {
-        if($devMode.dmDisplayFrequency -ne $refreshRates) {
+        if(($devMode.dmPelsWidth -ne $newWidth) -and ($devMode.dmPelsHeight -ne $newHeight)) {
             $devMode.dmPelsWidth = $newWidth
             $devMode.dmPelsHeight = $newHeight
 
@@ -308,34 +305,27 @@ public static class Display {
                 $devMode.dmSize = [System.Runtime.InteropServices.Marshal]::SizeOf($devMode)
                 $devReturn = [Display]::EnumDisplaySettings($primaryScreen.DeviceName,-1,[ref]$devMode)
                 Write-Host "Display frequency has been changed, current display config: $($devMode.dmPelsWidth)x$($devMode.dmPelsHeight) $($devMode.dmDisplayFrequency)Hz"
-                $isDevMode = $true
             }
             elseif($devReturn -eq 1) {
-                Write-Host "A restart is required. Please manually change the resolution."
-                $isDevMode = $false
+                Write-Host "A restart is required. Using different approach."
+            }
+            elseif($isQresDownload){
+                Write-Host "Using qres.exe instead"
+                Start-Process -FilePath ".\QRes.exe" -ArgumentList "/x:$newWidth /y:$newHeight" -Wait
             }
             else
             {
-                Write-Host "Failed to change display frequency, please check if display is capable of running at $refreshRates`Hz"
-                $isDevMode = $false
+                Write-Host "Failed to change display frequency. Please change the resolution manually"
             }
 
         }
         else
         {
             Write-Host "Current display frequency is already at $newWidth x $newHeight"
-            $isDevMode = $true
         }
     }
-    elseif(!($isDevMode) -and $isQresDownload)
-    {
-        Write-Host "Something's wrong. Using qres.exe instead"
-        Start-Process -FilePath ".\QRes.exe" -ArgumentList "/x:$newWidth /y:$newHeight" -Wait
-    }
-    else {
-        Write-Host "qres.exe is unavailable. Please change the resolution manually."
-    }
 }
+
 
 Write-Host "Changing Screen Resolution to $newWidth $newHeight"
 changeRes
