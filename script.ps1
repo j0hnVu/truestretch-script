@@ -1,9 +1,8 @@
 param (
     [int]$newWidth = 1280,   # Default Width
-    [int]$newHeight = 960   # Default Height
+    [int]$newHeight = 960,  # Default Height
     [string]$region = "ap" # Default region
-    )
-
+)
 # Variables
 $configUrl = "https://raw.githubusercontent.com/j0hnVu/truestretch-script/refs/heads/main/GameUserSettings.ini"
 $qresUrl = "https://raw.githubusercontent.com/j0hnVu/truestretch-script/refs/heads/main/tools/QRes.exe"
@@ -205,7 +204,7 @@ Set-ItemProperty -Path $configFile -Name IsReadOnly -Value $true
 # Get refresh-rate
 function getRefreshRate(){
     # I noticed a few NOEDID entries in $altPath, so I get all refresh rates value by dividing refresh rate numerator with denominator and get the max value
-    refRateValues= ${}
+    refRateValues= $()
 
     takeRegOwnership -Path "$altPath"
     $subKeys = Get-ChildItem -Path "$fullPath"
