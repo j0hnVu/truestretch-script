@@ -158,10 +158,11 @@ while (-not $getResponse){
                 Start-Sleep 2
             }
         }
-    }
+    } else {
     # Quit the script if no PUUID is retrived.
     Write-Host "Failed to get PUUID after 5 attempts"
     exit 1
+    }
 }
 
 $puuidFolder = "$puuid$region"
