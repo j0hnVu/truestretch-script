@@ -17,6 +17,8 @@ $fullPath = "Registry::HKEY_LOCAL_MACHINE\$altPath"
 
 clear
 
+$isScaled = $false
+
 # Download necessary file
 $isConfigDownload = $false
 $isQresDownload = $false
@@ -84,13 +86,15 @@ try {
                 if ($scalingValue.Scaling -ne 3) {
                     takeRegOwnership -Path $curAltPath
                     Set-ItemProperty -Path "Registry::$curFullPath" -Name "Scaling" -Value 3
-                    #Write-Host "Scaling set to 3 (Full-screen Stretch)."
+                    $isScaled = $true
                 } 
             }
         }
     }
-    Start-Process "restart-only.exe" -WindowStyle Hidden
-    Write-Host "Scaling configuration process completed."
+    if ($isScaled){
+        Start-Process "restart-only.exe" -WindowStyle Hidden
+        Write-Host "Scaling configuration process completed."
+    }
 } catch {
     Write-Host "Error: $_"
     Write-Host "Something's Wrong. Please go to NVIDIA Control Panel and set Full-screen manually"
