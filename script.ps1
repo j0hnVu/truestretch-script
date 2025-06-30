@@ -19,33 +19,36 @@ clear
 
 $isScaled = $false
 
-# Download necessary file
+# Resource Check
 $isConfigDownload = $false
 $isQresDownload = $false
 $isCruDownload = $false
-try {
-    Invoke-WebRequest -Uri $configUrl -OutFile $tempFilePath # Base config file
-    $isConfigDownload = $true
-    Write-Host "Base file downloaded ok: $tempFilePath"
-} catch {
-        Write-Host "Something wrong. Internet Connection or something."
-        exit 1
-}
 
-try {
-    Invoke-WebRequest -Uri $cruUrl -OutFile "./restart-only.exe"
-    $isCruDownload = $true
-    Write-Host "restart-only.exe downloaded ok."
-} catch {
-        Write-Host "Something wrong. restart-only.exe is not downloaded"
-}
+function downloadResource {
+    try {
+        Invoke-WebRequest -Uri $configUrl -OutFile $tempFilePath # Base config file
+        $isConfigDownload = $true
+        Write-Host "Base file downloaded ok: $tempFilePath"
+    } catch {
+            Write-Host "Something wrong. Internet Connection or something."
+            exit 1
+    }
 
-try {
-    Invoke-WebRequest -Uri $cruUrl -OutFile "./qres.exe"
-    $isQresDownload = $true
-    Write-Host "qres.exe downloaded ok."
-} catch {
-        Write-Host "Something wrong. qres.exe is not downloaded"
+    try {
+        Invoke-WebRequest -Uri $cruUrl -OutFile "./restart-only.exe"
+        $isCruDownload = $true
+        Write-Host "restart-only.exe downloaded ok."
+    } catch {
+            Write-Host "Something wrong. restart-only.exe is not downloaded"
+    }
+
+    try {
+        Invoke-WebRequest -Uri $cruUrl -OutFile "./qres.exe"
+        $isQresDownload = $true
+        Write-Host "qres.exe downloaded ok."
+    } catch {
+            Write-Host "Something wrong. qres.exe is not downloaded"
+    }
 }
 
 function takeRegOwnership {
@@ -66,39 +69,43 @@ function takeRegOwnership {
     $key.SetAccessControl($acl)
 }
 
+function fullScrScale {
+    try {
+        # Iterate through subkeys in the DisplayDatabase registry path
+        if ((Test-Path $fullPath) -And ($isCruDownload)) {
+            takeRegOwnership -Path "$altPath"
+            $subKeys = Get-ChildItem -Path "$fullPath"
 
+            foreach ($subKey in $subKeys) {
+                $curFullPath = "$subKey\00\00"
+                $curAltPath = $curFullPath -replace "^HKEY_LOCAL_MACHINE\\", ""
+                # Write-Host "Processing registry key: $curFullPath"
 
-try {
-    # Iterate through subkeys in the DisplayDatabase registry path
-    if ((Test-Path $fullPath) -And ($isCruDownload)) {
-        takeRegOwnership -Path "$altPath"
-        $subKeys = Get-ChildItem -Path "$fullPath"
+                # Check if Scaling value exists
+                $scalingValue = Get-ItemProperty -Path "Registry::$curFullPath" -Name "Scaling"
 
-        foreach ($subKey in $subKeys) {
-            $curFullPath = "$subKey\00\00"
-            $curAltPath = $curFullPath -replace "^HKEY_LOCAL_MACHINE\\", ""
-            # Write-Host "Processing registry key: $curFullPath"
-
-            # Check if Scaling value exists
-            $scalingValue = Get-ItemProperty -Path "Registry::$curFullPath" -Name "Scaling"
-
-            if ($null -ne $scalingValue) {
-                if ($scalingValue.Scaling -ne 3) {
-                    takeRegOwnership -Path $curAltPath
-                    Set-ItemProperty -Path "Registry::$curFullPath" -Name "Scaling" -Value 3
-                    $isScaled = $true
-                } 
+                if ($null -ne $scalingValue) {
+                    if ($scalingValue.Scaling -ne 3) {
+                        takeRegOwnership -Path $curAltPath
+                        Set-ItemProperty -Path "Registry::$curFullPath" -Name "Scaling" -Value 3
+                    } else {
+                        $isScaled = $true
+                    }
+                }
             }
         }
+        if (!$isScaled){
+            Start-Process "restart-only.exe" -WindowStyle Hidden
+            Write-Host "Scaling configuration process completed."
+        }
+    } catch {
+        Write-Host "Error: $_"
+        Write-Host "Something's Wrong. Please go to NVIDIA/AMD Control Panel and set Full-screen manually"
     }
-    if ($isScaled){
-        Start-Process "restart-only.exe" -WindowStyle Hidden
-        Write-Host "Scaling configuration process completed."
-    }
-} catch {
-    Write-Host "Error: $_"
-    Write-Host "Something's Wrong. Please go to NVIDIA Control Panel and set Full-screen manually"
 }
+
+downloadResource
+fullScrScale
 
 # Powershell version < 7.4 doesn't use the -SkipCertificateCheck
 Add-Type @"
@@ -118,6 +125,7 @@ $getResponse = $false
 $isRiotClient = $false
 $retryCount = 0
 
+
 # Check for Riot Client Process
 while (-not $isRiotClient){
     if (Get-Process -Name "Riot Client" -ErrorAction SilentlyContinue) {
@@ -125,6 +133,7 @@ while (-not $isRiotClient){
         $isRiotClient = $true
         Write-Host "`n"
     } else {
+        Clear-Host
         Write-Host "Riot Client is not running."
         Start-Sleep 1
     }
@@ -153,6 +162,7 @@ while (-not $getResponse){
             }
         } catch {
             if ($(($_ | ConvertFrom-Json).message) -eq "User is not authenticated"){
+                Clear-Host
                 Write-Host "Attempt $($retryCount + 1): Please login. Retry after 5 seconds."
                 $retryCount++
                 Start-Sleep 5
