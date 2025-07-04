@@ -24,6 +24,16 @@ $isConfigDownload = $false
 $isQresDownload = $false
 $isCruDownload = $false
 
+# Response check var
+$getResponse = $false
+$isRiotClient = $false
+$retryCount = 0
+
+# Folder var
+$puuidFolder = "$puuid$region"
+$windowsFolderPath = Join-Path "$cfgPath" "$puuidFolder\Windows"
+$configFile = Join-Path "$windowsFolderPath" "GameUserSettings.ini"
+
 function downloadResource {
     try {
         Invoke-WebRequest -Uri $configUrl -OutFile $tempFilePath # Base config file
@@ -103,8 +113,7 @@ function fullScrScale {
     }
 }
 
-downloadResource
-fullScrScale
+
 
 # Powershell version < 7.4 doesn't use the -SkipCertificateCheck
 Add-Type @"
@@ -119,10 +128,6 @@ public class TrustAllCertsPolicy : ICertificatePolicy {
 }
 "@
 [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
-
-$getResponse = $false
-$isRiotClient = $false
-$retryCount = 0
 
 # Check for Riot Client Process
 function isClient{
@@ -139,7 +144,6 @@ function isClient{
     }
 }
 
-isClient
 
 # Retrive PUUID using Riot Client Local API to create folder
 function getPUUID {
@@ -182,11 +186,6 @@ function getPUUID {
         }
     }
 }
-getPUUID
-
-$puuidFolder = "$puuid$region"
-$windowsFolderPath = Join-Path "$cfgPath" "$puuidFolder\Windows"
-$configFile = Join-Path "$windowsFolderPath" "GameUserSettings.ini"
 
 
 function setCfgRes {
@@ -223,7 +222,8 @@ function setCfgRes {
     # Reenable ReadOnly. Usually not required but still do to prevent Valorant from modifying the config
     Set-ItemProperty -Path $configFile -Name IsReadOnly -Value $true
 }
-setCfgRes
+
+
 
 # Get refresh-rate
 function getRefreshRate(){
@@ -258,7 +258,7 @@ function getRefreshRate(){
 # assuming that the refresh rate is already at the highest value
 
 function changeRes(){
-
+Write-Host "Changing Screen Resolution to $newWidth $newHeight"
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -348,7 +348,9 @@ public static class Display {
         }
     }
 }
-
-
-Write-Host "Changing Screen Resolution to $newWidth $newHeight"
+downloadResource
+fullScrScale
+isClient
+getPUUID
+setCfgRes
 changeRes
