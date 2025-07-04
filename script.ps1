@@ -24,16 +24,6 @@ $isConfigDownload = $false
 $isQresDownload = $false
 $isCruDownload = $false
 
-# Response check var
-$getResponse = $false
-$isRiotClient = $false
-$retryCount = 0
-
-# Folder var
-$puuidFolder = "$puuid$region"
-$windowsFolderPath = Join-Path "$cfgPath" "$puuidFolder\Windows"
-$configFile = Join-Path "$windowsFolderPath" "GameUserSettings.ini"
-
 function downloadResource {
     try {
         Invoke-WebRequest -Uri $configUrl -OutFile $tempFilePath # Base config file
@@ -99,11 +89,13 @@ function fullScrScale {
                         takeRegOwnership -Path $curAltPath
                         Set-ItemProperty -Path "Registry::$curFullPath" -Name "Scaling" -Value 3
                         $isScaled = $true
+                    } else {
+                        Write-Host "$curAltPath"
                     }
                 }
             }
         }
-        if (!$isScaled){
+        if ($isScaled){
             Start-Process "restart-only.exe" -WindowStyle Hidden
             Write-Host "Scaling configuration process completed."
         }
@@ -113,7 +105,8 @@ function fullScrScale {
     }
 }
 
-
+downloadResource
+fullScrScale
 
 # Powershell version < 7.4 doesn't use the -SkipCertificateCheck
 Add-Type @"
@@ -129,101 +122,100 @@ public class TrustAllCertsPolicy : ICertificatePolicy {
 "@
 [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
 
+$getResponse = $false
+$isRiotClient = $false
+$retryCount = 0
+
+
 # Check for Riot Client Process
-function isClient{
-    while (-not $isRiotClient){
-        if (Get-Process -Name "Riot Client" -ErrorAction SilentlyContinue) {
-            Write-Host "Riot Client is running. Continue."
-            $isRiotClient = $true
-            Write-Host "`n"
-        } else {
-            Clear-Host
-            Write-Host "Riot Client is not running."
-            Start-Sleep 1
-        }
+while (-not $isRiotClient){
+    if (Get-Process -Name "Riot Client" -ErrorAction SilentlyContinue) {
+        Write-Host "Riot Client is running. Continue."
+        $isRiotClient = $true
+        Write-Host "`n"
+    } else {
+        Clear-Host
+        Write-Host "Riot Client is not running."
+        Start-Sleep 1
     }
 }
-
 
 # Retrive PUUID using Riot Client Local API to create folder
-function getPUUID {
-    while (-not $getResponse){
-        if ($retryCount -lt 50){
-            # Using Riot Client Local API to get PUUID
-            $port = Get-Content "$env:LOCALAPPDATA\Riot Games\Riot Client\Config\lockfile" | ForEach-Object { ($_ -split ':')[2] }
-            $token = Get-Content "$env:LOCALAPPDATA\Riot Games\Riot Client\Config\lockfile" | ForEach-Object { ($_ -split ':')[3] }
-            $headers = @{
-            Authorization = "Basic $([Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("riot:$token")))"
-            "Content-Type" = "application/json"
-            }
-    
-            try {
-                $puuid = Invoke-RestMethod -Uri "https://127.0.0.1:$port/riot-messaging-service/v1/user" -Headers $headers
-                $nametag = Invoke-RestMethod -Uri "https://127.0.0.1:$port/player-account/aliases/v1/display-name" -Headers $headers
-    
-                Write-Host "Logged in as: $($nametag.gameName)#$($nametag.tagLine)"
-    
-                if ($puuid -Match '^[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}$'){
-                    Write-Host "Valid PUUID. Continue."
-                    $getResponse = $true
-                }
-            } catch {
-                if ($(($_ | ConvertFrom-Json).message) -eq "User is not authenticated"){
-                    Clear-Host
-                    Write-Host "Attempt $($retryCount + 1): Please login. Retry after 5 seconds."
-                    $retryCount++
-                    Start-Sleep 5
-                } else {
-                    Write-Host "Error: $(($_ | ConvertFrom-Json).message)"
-                    $retryCount++
-                    Start-Sleep 2
-                }
-            }
-        } else {
-        # Quit the script if no PUUID is retrived.
-        Write-Host "Failed to get PUUID after 5 attempts"
-        exit 1
+while (-not $getResponse){
+    if ($retryCount -lt 50){
+        # Using Riot Client Local API to get PUUID
+        $port = Get-Content "$env:LOCALAPPDATA\Riot Games\Riot Client\Config\lockfile" | ForEach-Object { ($_ -split ':')[2] }
+        $token = Get-Content "$env:LOCALAPPDATA\Riot Games\Riot Client\Config\lockfile" | ForEach-Object { ($_ -split ':')[3] }
+        $headers = @{
+        Authorization = "Basic $([Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("riot:$token")))"
+        "Content-Type" = "application/json"
         }
+
+        try {
+            $puuid = Invoke-RestMethod -Uri "https://127.0.0.1:$port/riot-messaging-service/v1/user" -Headers $headers
+            $nametag = Invoke-RestMethod -Uri "https://127.0.0.1:$port/player-account/aliases/v1/display-name" -Headers $headers
+
+            Write-Host "Logged in as: $($nametag.gameName)#$($nametag.tagLine)"
+
+            if ($puuid -Match '^[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}$'){
+                Write-Host "Valid PUUID. Continue."
+                $getResponse = $true
+            }
+        } catch {
+            if ($(($_ | ConvertFrom-Json).message) -eq "User is not authenticated"){
+                Clear-Host
+                Write-Host "Attempt $($retryCount + 1): Please login. Retry after 5 seconds."
+                $retryCount++
+                Start-Sleep 5
+            } else {
+                Write-Host "Error: $(($_ | ConvertFrom-Json).message)"
+                $retryCount++
+                Start-Sleep 2
+            }
+        }
+    } else {
+    # Quit the script if no PUUID is retrived.
+    Write-Host "Failed to get PUUID after 5 attempts"
+    exit 1
     }
 }
 
+$puuidFolder = "$puuid$region"
+$windowsFolderPath = Join-Path "$cfgPath" "$puuidFolder\Windows"
+$configFile = Join-Path "$windowsFolderPath" "GameUserSettings.ini"
 
-function setCfgRes {
-    # Create folder with PUUID of the account if not exist
-    if (-not (Test-Path $windowsFolderPath)) {
-        New-Item -Path "$windowsFolderPath" -ItemType Directory -Force
-        }
-    
-    # Copy the base GameUserSettings.ini file 
-    Copy-Item -Path $tempFilePath -Destination $windowsFolderPath -Force
-    Write-Host "Done."
-    
-    # Disable ReadOnly
-    Set-ItemProperty -Path $configFile -Name IsReadOnly -Value $false
-    
-    # If the config file exists, and the width & height isn't the default value, change the value in the config file
-    if ((Test-Path $configFile) -and (($newWidth -ne 1280) -or ($newHeight -ne 960))) {  
-        # Read the file
-        $configContent = Get-Content $configFile
-    
-        # Replace the resolution settings
-        $configContent = $configContent -replace 'ResolutionSizeX=\d+', "ResolutionSizeX=$newWidth"
-        $configContent = $configContent -replace 'ResolutionSizeY=\d+', "ResolutionSizeY=$newHeight"
-    
-        $configContent = $configContent -replace 'LastUserConfirmedResolutionSizeX=\d+', "LastUserConfirmedResolutionSizeX=$newWidth"
-        $configContent = $configContent -replace 'LastUserConfirmedResolutionSizeY=\d+', "LastUserConfirmedResolutionSizeY=$newHeight"
-    
-        # Save the modified file
-        $configContent | Set-Content -Path $configFile -Encoding UTF8
-    
-        Write-Host "Current Res: ${newWidth} ${newHeight}"
-    } 
-    
-    # Reenable ReadOnly. Usually not required but still do to prevent Valorant from modifying the config
-    Set-ItemProperty -Path $configFile -Name IsReadOnly -Value $true
-}
+# Create folder with PUUID of the account if not exist
+if (-not (Test-Path $windowsFolderPath)) {
+    New-Item -Path "$windowsFolderPath" -ItemType Directory -Force
+    }
 
+# Copy the base GameUserSettings.ini file 
+Copy-Item -Path $tempFilePath -Destination $windowsFolderPath -Force
+Write-Host "Done."
 
+# Disable ReadOnly
+Set-ItemProperty -Path $configFile -Name IsReadOnly -Value $false
+
+# If the config file exists, and the width & height isn't the default value, change the value in the config file
+if ((Test-Path $configFile) -and (($newWidth -ne 1280) -or ($newHeight -ne 960))) {  
+    # Read the file
+    $configContent = Get-Content $configFile
+
+    # Replace the resolution settings
+    $configContent = $configContent -replace 'ResolutionSizeX=\d+', "ResolutionSizeX=$newWidth"
+    $configContent = $configContent -replace 'ResolutionSizeY=\d+', "ResolutionSizeY=$newHeight"
+
+    $configContent = $configContent -replace 'LastUserConfirmedResolutionSizeX=\d+', "LastUserConfirmedResolutionSizeX=$newWidth"
+    $configContent = $configContent -replace 'LastUserConfirmedResolutionSizeY=\d+', "LastUserConfirmedResolutionSizeY=$newHeight"
+
+    # Save the modified file
+    $configContent | Set-Content -Path $configFile -Encoding UTF8
+
+    Write-Host "Current Res: ${newWidth} ${newHeight}"
+} 
+
+# Reenable ReadOnly. Usually not required but still do to prevent Valorant from modifying the config
+Set-ItemProperty -Path $configFile -Name IsReadOnly -Value $true
 
 # Get refresh-rate
 function getRefreshRate(){
@@ -258,7 +250,7 @@ function getRefreshRate(){
 # assuming that the refresh rate is already at the highest value
 
 function changeRes(){
-Write-Host "Changing Screen Resolution to $newWidth $newHeight"
+
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -348,9 +340,7 @@ public static class Display {
         }
     }
 }
-downloadResource
-fullScrScale
-isClient
-getPUUID
-setCfgRes
+
+
+Write-Host "Changing Screen Resolution to $newWidth $newHeight"
 changeRes
