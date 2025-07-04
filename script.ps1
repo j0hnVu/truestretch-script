@@ -88,13 +88,14 @@ function fullScrScale {
                     if ($scalingValue.Scaling -ne 3) {
                         takeRegOwnership -Path $curAltPath
                         Set-ItemProperty -Path "Registry::$curFullPath" -Name "Scaling" -Value 3
-                    } else {
                         $isScaled = $true
+                    } else {
+                        Write-Host "$curAltPath"
                     }
                 }
             }
         }
-        if (!$isScaled){
+        if ($isScaled){
             Start-Process "restart-only.exe" -WindowStyle Hidden
             Write-Host "Scaling configuration process completed."
         }
