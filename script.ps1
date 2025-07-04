@@ -103,7 +103,6 @@ function fullScrScale {
                 }
             }
         }
-        if ($isScaled){
             Start-Process "restart-only.exe" -WindowStyle Hidden
             Write-Host "Scaling configuration process completed."
         }
