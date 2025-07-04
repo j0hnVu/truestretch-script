@@ -89,8 +89,6 @@ function fullScrScale {
                         takeRegOwnership -Path $curAltPath
                         Set-ItemProperty -Path "Registry::$curFullPath" -Name "Scaling" -Value 3
                         $isScaled = $true
-                    } else {
-                        Write-Host "$curAltPath"
                     }
                 }
             }
