@@ -182,29 +182,24 @@ while (-not $getResponse){
 
 $puuidFolder = "$puuid$region"
 $windowsFolderPath = Join-Path "$cfgPath" "$puuidFolder\Windows"
-$windowsClientFolderPath = Join-Path "$cfgPath" "$puuidFolder\Windows"
-$configWindowsFile = Join-Path "$windowsFolderPath" "GameUserSettings.ini"
-$configWindowsClientFile = Join-Path "$windowsFolderPath" "GameUserSettings.ini"
+$configFile = Join-Path "$windowsFolderPath" "GameUserSettings.ini"
 
 # Create folder with PUUID of the account if not exist
 if (-not (Test-Path $windowsFolderPath)) {
     New-Item -Path "$windowsFolderPath" -ItemType Directory -Force
-    New-Item -Path "$windowsClientFolderPath" -ItemType Directory -Force
     }
 
 # Copy the base GameUserSettings.ini file 
 Copy-Item -Path $tempFilePath -Destination $windowsFolderPath -Force
-Copy-Item -Path $tempFilePath -Destination $windowsClientFolderPath -Force
 Write-Host "Done."
 
 # Disable ReadOnly
-Set-ItemProperty -Path $configWindowsFile -Name IsReadOnly -Value $false
-Set-ItemProperty -Path $configClientWindowsFile -Name IsReadOnly -Value $false
+Set-ItemProperty -Path $configFile -Name IsReadOnly -Value $false
 
 # If the config file exists, and the width & height isn't the default value, change the value in the config file
-if ((Test-Path $configWindowsFile) -and (($newWidth -ne 1280) -or ($newHeight -ne 960))) {  
+if ((Test-Path $configFile) -and (($newWidth -ne 1280) -or ($newHeight -ne 960))) {  
     # Read the file
-    $configContent = Get-Content $configWindowsFile
+    $configContent = Get-Content $configFile
 
     # Replace the resolution settings
     $configContent = $configContent -replace 'ResolutionSizeX=\d+', "ResolutionSizeX=$newWidth"
@@ -214,31 +209,13 @@ if ((Test-Path $configWindowsFile) -and (($newWidth -ne 1280) -or ($newHeight -n
     $configContent = $configContent -replace 'LastUserConfirmedResolutionSizeY=\d+', "LastUserConfirmedResolutionSizeY=$newHeight"
 
     # Save the modified file
-    $configContent | Set-Content -Path $configWindowsFile -Encoding UTF8
-
-    Write-Host "Current Res: ${newWidth} ${newHeight}"
-} 
-
-if ((Test-Path $configWindowsClientFile) -and (($newWidth -ne 1280) -or ($newHeight -ne 960))) {  
-    # Read the file
-    $configContent = Get-Content $configWindowsClientFile
-
-    # Replace the resolution settings
-    $configContent = $configContent -replace 'ResolutionSizeX=\d+', "ResolutionSizeX=$newWidth"
-    $configContent = $configContent -replace 'ResolutionSizeY=\d+', "ResolutionSizeY=$newHeight"
-
-    $configContent = $configContent -replace 'LastUserConfirmedResolutionSizeX=\d+', "LastUserConfirmedResolutionSizeX=$newWidth"
-    $configContent = $configContent -replace 'LastUserConfirmedResolutionSizeY=\d+', "LastUserConfirmedResolutionSizeY=$newHeight"
-
-    # Save the modified file
-    $configContent | Set-Content -Path $configWindowsClientFile -Encoding UTF8
+    $configContent | Set-Content -Path $configFile -Encoding UTF8
 
     Write-Host "Current Res: ${newWidth} ${newHeight}"
 } 
 
 # Reenable ReadOnly. Usually not required but still do to prevent Valorant from modifying the config
-Set-ItemProperty -Path $configWindowsFile -Name IsReadOnly -Value $true
-Set-ItemProperty -Path $configWindowsClientFile -Name IsReadOnly -Value $true
+Set-ItemProperty -Path $configFile -Name IsReadOnly -Value $true
 
 # Get refresh-rate
 function getRefreshRate(){
