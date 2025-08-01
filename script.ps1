@@ -11,7 +11,7 @@ $cruUrl = "https://raw.githubusercontent.com/j0hnVu/truestretch-script/refs/head
 $region = "-$region" # Temporary hardcoded region
 
 $cfgPath = "$env:LOCALAPPDATA\VALORANT\Saved\Config"
-$tempFilePath = "$env:TEMP\GameUserSettings.ini"
+$tmpCfgFilePath = "$env:TEMP\GameUserSettings.ini"
 $altPath = "SYSTEM\CurrentControlSet\Control\GraphicsDrivers\Configuration"
 $fullPath = "Registry::HKEY_LOCAL_MACHINE\$altPath"
 
@@ -26,9 +26,9 @@ $isCruDownload = $false
 
 function downloadResource {
     try {
-        Invoke-WebRequest -Uri $configUrl -OutFile $tempFilePath # Base config file
+        Invoke-WebRequest -Uri $configUrl -OutFile $tmpCfgFilePath # Base config file
         $isConfigDownload = $true
-        Write-Host "Base file downloaded ok: $tempFilePath"
+        Write-Host "Base file downloaded ok: $tmpCfgFilePath"
     } catch {
             Write-Host "Something wrong. Internet Connection or something."
             exit 1
@@ -181,23 +181,38 @@ while (-not $getResponse){
 }
 
 $puuidFolder = "$puuid$region"
-$windowsFolderPath = Join-Path "$cfgPath" "$puuidFolder\Windows"
-$configFile = Join-Path "$windowsFolderPath" "GameUserSettings.ini"
+$windowsClientFolder = Join-Path $cfgPath "WindowsClient"
+$userWindowsClientFolder = Join-Path "$cfgPath" "$puuidFolder\WindowsClient"
+$configFile = Join-Path "$windowsClientFolder" "GameUserSettings.ini"
+$userConfigFile = Join-Path "$userWindowsClientFolder" "GameUserSettings.ini"
 
 # Create folder with PUUID of the account if not exist
-if (-not (Test-Path $windowsFolderPath)) {
-    New-Item -Path "$windowsFolderPath" -ItemType Directory -Force
+if (-not (Test-Path $userWindowsClientFolder)) {
+    New-Item -Path "$userWindowsClientFolder" -ItemType Directory -Force
+    }
+
+if (-not (Test-Path $windowsClientFolder)) {
+    New-Item -Path "$windowsClientFolder" -ItemType Directory -Force
     }
 
 # Copy the base GameUserSettings.ini file 
-Copy-Item -Path $tempFilePath -Destination $windowsFolderPath -Force
+Copy-Item -Path $tmpCfgFilePath -Destination $userWindowsClientFolder -Force
+Copy-Item -Path $tmpCfgFilePath -Destination $windowsClientFolder -Force
 Write-Host "Done."
 
 # Disable ReadOnly
 Set-ItemProperty -Path $configFile -Name IsReadOnly -Value $false
+Set-ItemProperty -Path $userConfigFile -Name IsReadOnly -Value $false
 
 # If the config file exists, and the width & height isn't the default value, change the value in the config file
-if ((Test-Path $configFile) -and (($newWidth -ne 1280) -or ($newHeight -ne 960))) {  
+if (
+    (Test-Path $configFile) -and 
+    (Test-Path $userConfigFile) -and 
+    (
+        ($newWidth -ne 1280) -or 
+        ($newHeight -ne 960)
+    )
+) {  
     # Read the file
     $configContent = Get-Content $configFile
 
@@ -210,12 +225,14 @@ if ((Test-Path $configFile) -and (($newWidth -ne 1280) -or ($newHeight -ne 960))
 
     # Save the modified file
     $configContent | Set-Content -Path $configFile -Encoding UTF8
+    $configContent | Set-Content -Path $userConfigFile -Encoding UTF8
 
     Write-Host "Current Res: ${newWidth} ${newHeight}"
 } 
 
 # Reenable ReadOnly. Usually not required but still do to prevent Valorant from modifying the config
 Set-ItemProperty -Path $configFile -Name IsReadOnly -Value $true
+Set-ItemProperty -Path $userConfigFile -Name IsReadOnly -Value $true
 
 # Get refresh-rate
 function getRefreshRate(){
