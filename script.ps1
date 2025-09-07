@@ -3,10 +3,66 @@ param (
     [int]$newHeight = 960,  # Default Height
     [string]$region = "ap" # Default region
 )
+
+clear
+Write-Host "              
+              .-------------------------------.
+             /                               /|
+            /                               / |
+           /                               /  |
+          /                               /   |
+         .-------------------------------.    |
+         |`-------------------------------`|  |
+         | |                             | |  |
+         | |                             | |  |
+         | |                             | |  |
+         | |     H A V D E P T R A I     | |  |
+         | |                             | |  |
+         | |                             | |  /
+         | |_____________________________| | /
+         |_________________________________|/
+          `-----------. .-----------`
+        /:::::::::::::::V:::::::::::::::
+       /---------------------------------
+      `---------------------------------`
+       /`-----------------------------`
+      /              ...              /
+     /_______________________________/
+"
+
+Start-Sleep 1
+clear
+
+Write-Host "              
+              .-------------------------------.
+             /                               /|
+            /                               / |
+           /                               /  |
+          /                               /   |
+         .-------------------------------.    |
+         |`-------------------------------`|  |
+         | |                             | |  |
+         | |                             | |  |
+         | |                             | |  |
+         | |       DIT ME MINH LE        | |  |
+         | |                             | |  |
+         | |                             | |  /
+         | |_____________________________| | /
+         |_________________________________|/
+          `-----------. .-----------`
+        /:::::::::::::::V:::::::::::::::
+       /---------------------------------
+      `---------------------------------`
+       /`-----------------------------`
+      /              ...              /
+     /_______________________________/
+"
+Start-Sleep 1
+
 # Variables
 $configUrl = "https://raw.githubusercontent.com/j0hnVu/truestretch-script/refs/heads/main/GameUserSettings.ini"
-$qresUrl = "https://raw.githubusercontent.com/j0hnVu/truestretch-script/refs/heads/main/tools/QRes.exe"
-$cruUrl = "https://raw.githubusercontent.com/j0hnVu/truestretch-script/refs/heads/main/tools/restart-only.exe"
+$qresUrl = "https://github.com/j0hnVu/truestretch-script/raw/refs/heads/main/tools/QRes.exe"
+$cruUrl = "https://github.com/j0hnVu/truestretch-script/raw/refs/heads/main/tools/restart-only.exe"
 
 $region = "-$region" # Temporary hardcoded region
 
@@ -21,35 +77,8 @@ $isScaled = $false
 
 # Resource Check
 $isConfigDownload = $false
-$isQresDownload = $false
+$isQresDownload = $true
 $isCruDownload = $false
-
-function downloadResource {
-    try {
-        Invoke-WebRequest -Uri $configUrl -OutFile $tmpCfgFilePath # Base config file
-        $isConfigDownload = $true
-        Write-Host "Base file downloaded ok: $tmpCfgFilePath"
-    } catch {
-            Write-Host "Something wrong. Internet Connection or something."
-            exit 1
-    }
-
-    try {
-        Invoke-WebRequest -Uri $cruUrl -OutFile "./restart-only.exe"
-        $isCruDownload = $true
-        Write-Host "restart-only.exe downloaded ok."
-    } catch {
-            Write-Host "Something wrong. restart-only.exe is not downloaded"
-    }
-
-    try {
-        Invoke-WebRequest -Uri $cruUrl -OutFile "./qres.exe"
-        $isQresDownload = $true
-        Write-Host "qres.exe downloaded ok."
-    } catch {
-            Write-Host "Something wrong. qres.exe is not downloaded"
-    }
-}
 
 function takeRegOwnership {
     param (
@@ -68,6 +97,35 @@ function takeRegOwnership {
     # Apply the updated ACL to the registry key
     $key.SetAccessControl($acl)
 }
+
+function downloadResource {
+    try {
+        Invoke-WebRequest -Uri $configUrl -OutFile $tmpCfgFilePath # Base config file
+        $script:isConfigDownload = $true
+        Write-Host "Base file downloaded ok: $tmpCfgFilePath"
+    } catch {
+            Write-Host "Something wrong. Internet Connection or something."
+            exit 1
+    }
+
+    try {
+        Invoke-WebRequest -Uri $cruUrl -OutFile "./restart-only.exe"
+        $script:isCruDownload = $true
+        Write-Host "restart-only.exe downloaded ok."
+    } catch {
+            Write-Host "Something wrong. restart-only.exe is not downloaded"
+    }
+
+    try {
+        Invoke-WebRequest -Uri $qresUrl -OutFile "./QRes.exe"
+        $script:isQresDownload = $true
+        Write-Host "qres.exe downloaded ok."
+    } catch {
+            Write-Host "Something wrong. qres.exe is not downloaded"
+    }
+}
+
+ 
 
 function fullScrScale {
     try {
@@ -90,11 +148,11 @@ function fullScrScale {
                         Set-ItemProperty -Path "Registry::$curFullPath" -Name "Scaling" -Value 3
                         $isScaled = $true
                     } else {
-                        Write-Host "$curAltPath"
+                        Write-Host "$curFullPath"
                     }
                 }
             }
-        }
+        } else { Write-Host "Something's Wrong. [fullScrScale]" }
         if ($isScaled){
             Start-Process "restart-only.exe" -WindowStyle Hidden
             Write-Host "Scaling configuration process completed."
@@ -107,6 +165,121 @@ function fullScrScale {
 
 downloadResource
 fullScrScale
+
+# Get refresh-rate
+function getRefreshRate(){
+    # I noticed a few NOEDID entries in $altPath, so I get all refresh rates value by dividing refresh rate numerator with denominator and get the max value
+    refRateValues= $()
+
+    takeRegOwnership -Path "$altPath"
+    $subKeys = Get-ChildItem -Path "$fullPath"
+
+        foreach ($subKey in $subKeys) {
+            $curFullPath = "$subKey\00\00"
+            $curAltPath = $curFullPath -replace "^HKEY_LOCAL_MACHINE\\", ""
+            # Write-Host "Processing registry key: $curFullPath"
+
+            # Check if Refresh Rate denominator and numerator value exists
+            $refDenominatorValue = Get-ItemProperty -Path "Registry::$curFullPath" -Name "RefreshRateDenominator"
+            $refNumeratorValue = Get-ItemProperty -Path "Registry::$curFullPath" -Name "RefreshRateNumerator"
+
+            if ($refDenominatorValue -ne 0) {
+                $refRate = $refNumeratorValue / $refDenominatorValue
+                $refRate += $refRateValues
+            }
+        }
+    if ($refRateValues.Count -gt 0) {
+        return ($refRateValues | Sort-Object -Descending)[0]
+    } else {
+        return $null
+    }
+}
+# Assuming the refresh rate is already at the optimal value
+# $refreshRates = getRefreshRate
+
+function changeRes(){
+
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+ 
+public static class Display {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DEVMODE {
+        private const int CCHDEVICENAME = 0x20;
+        private const int CCHFORMNAME = 0x20;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 0x20)]
+        public string dmDeviceName;
+        public short dmSpecVersion;
+        public short dmDriverVersion;
+        public short dmSize;
+        public short dmDriverExtra;
+        public int dmFields;
+        public int dmPositionX;
+        public int dmPositionY;
+        public int dmDisplayOrientation;
+        public int dmDisplayFixedOutput;
+        public short dmColor;
+        public short dmDuplex;
+        public short dmYResolution;
+        public short dmTTOption;
+        public short dmCollate;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 0x20)]
+        public string dmFormName;
+        public short dmLogPixels;
+        public int dmBitsPerPel;
+        public int dmPelsWidth;
+        public int dmPelsHeight;
+        public int dmDisplayFlags;
+        public int dmDisplayFrequency;
+        public int dmICMMethod;
+        public int dmICMIntent;
+        public int dmMediaType;
+        public int dmDitherType;
+        public int dmReserved1;
+        public int dmReserved2;
+        public int dmPanningWidth;
+        public int dmPanningHeight;
+    }
+ 
+    [DllImport("user32.dll")]
+    public static extern bool EnumDisplaySettings (string deviceName, int modeNum, ref DEVMODE devMode);  
+ 
+    [DllImport("user32.dll")]
+    public static extern int ChangeDisplaySettings(ref DEVMODE devMode, int flags);
+}
+'@
+    
+    Add-Type -AssemblyName System.Windows.Forms
+    $primaryScreen = [System.Windows.Forms.Screen]::PrimaryScreen
+    
+    $devMode = [Display+DEVMODE]::new()
+    $devMode.dmSize = [System.Runtime.InteropServices.Marshal]::SizeOf($devMode)
+     
+    $devReturn = [Display]::EnumDisplaySettings($primaryScreen.DeviceName,-1,[ref]$devMode)
+    if(($devMode.dmPelsWidth -ne $newWidth) -and ($devMode.dmPelsHeight -ne $newHeight) -and ($devReturn)) {
+        $devMode.dmPelsWidth = $newWidth
+        $devMode.dmPelsHeight = $newHeight
+
+        $devReturn = [Display]::ChangeDisplaySettings([ref]$devMode,0x00000001 -bor 0x00000008)
+        $devMode = [Display+DEVMODE]::new()
+
+        # IDK
+        $devMode.dmSize = [System.Runtime.InteropServices.Marshal]::SizeOf($devMode)
+        $devReturn = [Display]::EnumDisplaySettings($primaryScreen.DeviceName,-1,[ref]$devMode)
+        Write-Host "Current display config: $($devMode.dmPelsWidth)x$($devMode.dmPelsHeight) $($devMode.dmDisplayFrequency)Hz"
+
+    } else {
+        Write-Host "Current display frequency is already at $newWidth x $newHeight"
+    }
+    if(($devMode.dmPelsWidth -ne $newWidth) -and ($devMode.dmPelsHeight -ne $newHeight)){
+        Write-Host "Resolution mismatch. Using QRes.exe instead"
+        Start-Process -FilePath ".\QRes.exe" -ArgumentList "/X:$newWidth /Y:$newHeight" -Wait
+    } else {
+        Write-Host "Failed to change display frequency. Please change the resolution manually"
+    }
+}
+
 
 # Powershell version < 7.4 doesn't use the -SkipCertificateCheck
 Add-Type @"
@@ -134,7 +307,7 @@ while (-not $isRiotClient){
         $isRiotClient = $true
         Write-Host "`n"
     } else {
-        Clear-Host
+        clear
         Write-Host "Riot Client is not running."
         Start-Sleep 1
     }
@@ -163,7 +336,7 @@ while (-not $getResponse){
             }
         } catch {
             if ($(($_ | ConvertFrom-Json).message) -eq "User is not authenticated"){
-                Clear-Host
+                clear
                 Write-Host "Attempt $($retryCount + 1): Please login. Retry after 5 seconds."
                 $retryCount++
                 Start-Sleep 5
@@ -234,130 +407,4 @@ if (
 Set-ItemProperty -Path $configFile -Name IsReadOnly -Value $true
 Set-ItemProperty -Path $userConfigFile -Name IsReadOnly -Value $true
 
-# Get refresh-rate
-function getRefreshRate(){
-    # I noticed a few NOEDID entries in $altPath, so I get all refresh rates value by dividing refresh rate numerator with denominator and get the max value
-    refRateValues= $()
-
-    takeRegOwnership -Path "$altPath"
-    $subKeys = Get-ChildItem -Path "$fullPath"
-
-        foreach ($subKey in $subKeys) {
-            $curFullPath = "$subKey\00\00"
-            $curAltPath = $curFullPath -replace "^HKEY_LOCAL_MACHINE\\", ""
-            # Write-Host "Processing registry key: $curFullPath"
-
-            # Check if Refresh Rate denominator and numerator value exists
-            $refDenominatorValue = Get-ItemProperty -Path "Registry::$curFullPath" -Name "RefreshRateDenominator"
-            $refNumeratorValue = Get-ItemProperty -Path "Registry::$curFullPath" -Name "RefreshRateNumerator"
-
-            if ($refDenominatorValue -ne 0) {
-                $refRate = $refNumeratorValue / $refDenominatorValue
-                $refRate += $refRateValues
-            }
-        }
-    if ($refRateValues.Count -gt 0) {
-        return ($refRateValues | Sort-Object -Descending)[0]
-    } else {
-        return $null
-    }
-}
-
-# $refreshRates = getRefreshRate
-# assuming that the refresh rate is already at the highest value
-
-function changeRes(){
-
-Add-Type -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
- 
-public static class Display {
-    [StructLayout(LayoutKind.Sequential)]
-    public struct DEVMODE {
-        private const int CCHDEVICENAME = 0x20;
-        private const int CCHFORMNAME = 0x20;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 0x20)]
-        public string dmDeviceName;
-        public short dmSpecVersion;
-        public short dmDriverVersion;
-        public short dmSize;
-        public short dmDriverExtra;
-        public int dmFields;
-        public int dmPositionX;
-        public int dmPositionY;
-        public int dmDisplayOrientation;
-        public int dmDisplayFixedOutput;
-        public short dmColor;
-        public short dmDuplex;
-        public short dmYResolution;
-        public short dmTTOption;
-        public short dmCollate;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 0x20)]
-        public string dmFormName;
-        public short dmLogPixels;
-        public int dmBitsPerPel;
-        public int dmPelsWidth;
-        public int dmPelsHeight;
-        public int dmDisplayFlags;
-        public int dmDisplayFrequency;
-        public int dmICMMethod;
-        public int dmICMIntent;
-        public int dmMediaType;
-        public int dmDitherType;
-        public int dmReserved1;
-        public int dmReserved2;
-        public int dmPanningWidth;
-        public int dmPanningHeight;
-    }
- 
-    [DllImport("user32.dll")]
-    public static extern bool EnumDisplaySettings (string deviceName, int modeNum, ref DEVMODE devMode);  
- 
-    [DllImport("user32.dll")]
-    public static extern int ChangeDisplaySettings(ref DEVMODE devMode, int flags);
-}
-'@
-    
-    Add-Type -AssemblyName System.Windows.Forms
-    $primaryScreen = [System.Windows.Forms.Screen]::PrimaryScreen
-    
-    $devMode = [Display+DEVMODE]::new()
-    $devMode.dmSize = [System.Runtime.InteropServices.Marshal]::SizeOf($devMode)
-     
-    $devReturn = [Display]::EnumDisplaySettings($primaryScreen.DeviceName,-1,[ref]$devMode)
-    if($devReturn) {
-        if(($devMode.dmPelsWidth -ne $newWidth) -and ($devMode.dmPelsHeight -ne $newHeight)) {
-            $devMode.dmPelsWidth = $newWidth
-            $devMode.dmPelsHeight = $newHeight
-
-            $devReturn = [Display]::ChangeDisplaySettings([ref]$devMode,0x00000001 -bor 0x00000008)
-            if($devReturn -eq 0) {
-                $devMode = [Display+DEVMODE]::new()
-                $devMode.dmSize = [System.Runtime.InteropServices.Marshal]::SizeOf($devMode)
-                $devReturn = [Display]::EnumDisplaySettings($primaryScreen.DeviceName,-1,[ref]$devMode)
-                Write-Host "Display frequency has been changed, current display config: $($devMode.dmPelsWidth)x$($devMode.dmPelsHeight) $($devMode.dmDisplayFrequency)Hz"
-            }
-            elseif($devReturn -eq 1) {
-                Write-Host "A restart is required. Using different approach."
-            }
-            elseif($isQresDownload){
-                Write-Host "Using qres.exe instead"
-                Start-Process -FilePath ".\QRes.exe" -ArgumentList "/x:$newWidth /y:$newHeight" -Wait
-            }
-            else
-            {
-                Write-Host "Failed to change display frequency. Please change the resolution manually"
-            }
-
-        }
-        else
-        {
-            Write-Host "Current display frequency is already at $newWidth x $newHeight"
-        }
-    }
-}
-
-
-Write-Host "Changing Screen Resolution to $newWidth $newHeight"
 changeRes
