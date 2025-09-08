@@ -4,7 +4,7 @@ param (
     [string]$region = "ap" # Default region
 )
 
-clear
+Clear-Host
 Write-Host "              
               .-------------------------------.
              /                               /|
@@ -31,7 +31,7 @@ Write-Host "
 "
 
 Start-Sleep 1
-clear
+Clear-Host
 
 Write-Host "              
               .-------------------------------.
@@ -71,7 +71,7 @@ $tmpCfgFilePath = "$env:TEMP\GameUserSettings.ini"
 $altPath = "SYSTEM\CurrentControlSet\Control\GraphicsDrivers\Configuration"
 $fullPath = "Registry::HKEY_LOCAL_MACHINE\$altPath"
 
-clear
+Clear-Host
 
 $isScaled = $false
 
@@ -307,7 +307,7 @@ while (-not $isRiotClient){
         $isRiotClient = $true
         Write-Host "`n"
     } else {
-        clear
+        Clear-Host
         Write-Host "Riot Client is not running."
         Start-Sleep 1
     }
@@ -336,7 +336,7 @@ while (-not $getResponse){
             }
         } catch {
             if ($(($_ | ConvertFrom-Json).message) -eq "User is not authenticated"){
-                clear
+                Clear-Host
                 Write-Host "Attempt $($retryCount + 1): Please login. Retry after 5 seconds."
                 $retryCount++
                 Start-Sleep 5
@@ -400,7 +400,7 @@ if (
     $configContent | Set-Content -Path $configFile -Encoding UTF8
     $configContent | Set-Content -Path $userConfigFile -Encoding UTF8
 
-    Write-Host "Current Res: ${newWidth} ${newHeight}"
+    Write-Host "Config Res: ${newWidth} ${newHeight}"
 } 
 
 # Reenable ReadOnly. Usually not required but still do to prevent Valorant from modifying the config
