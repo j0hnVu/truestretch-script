@@ -25,36 +25,8 @@ Write-Host "
     \           /
 
 "
-
-Clear-Host
-Write-Host "              
-              .-------------------------------.
-             /                               /|
-            /                               / |
-           /                               /  |
-          /                               /   |
-         .-------------------------------.    |
-         |`-------------------------------`|  |
-         | |                             | |  |
-         | |                             | |  |
-         | |                             | |  |
-         | |     H A V D E P T R A I     | |  |
-         | |                             | |  |
-         | |                             | |  /
-         | |_____________________________| | /
-         |_________________________________|/
-          `-----------. .-----------`
-        /:::::::::::::::V:::::::::::::::
-       /---------------------------------
-      `---------------------------------`
-       /`-----------------------------`
-      /              ...              /
-     /_______________________________/
-"
-
 Start-Sleep 1
 Clear-Host
-
 Write-Host "              
               .-------------------------------.
              /                               /|
@@ -97,6 +69,17 @@ Clear-Host
 # Resource Check
 $isConfigDownload = $false
 
+function downloadResource {
+    try {
+        Invoke-WebRequest -Uri $configUrl -OutFile $tmpCfgFilePath # Base config file
+        $script:isConfigDownload = $true
+        Write-Host "Base file downloaded ok: $tmpCfgFilePath"
+    } catch {
+            Write-Host "Something wrong. Internet Connection or something."
+            exit 1
+    }
+}
+
 function takeRegOwnership {
     param (
         [string]$Path
@@ -134,6 +117,7 @@ $getResponse = $false
 $isRiotClient = $false
 $retryCount = 0
 
+downloadResource
 
 # Check for Riot Client Process
 while (-not $isRiotClient){
